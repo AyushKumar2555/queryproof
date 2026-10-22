@@ -11,7 +11,7 @@
 |-------|--------|-------|
 | AI Service (FastAPI) | ✅ Done | NL → ES DSL, mock/Gemini/OpenAI/Anthropic, 12 unit tests |
 | Express API | ✅ Done | Analyze proxy, validation, logging, error handling |
-| MongoDB | ✅ Done | Query history saved to `es_query_db` (local or Atlas) |
+| MongoDB | ✅ Done | Query history and eval cases in `queryproof` (local or Atlas) |
 | Query history API | ✅ Done | List, get by ID, delete, usage stats |
 | Frontend / UI | ❌ Not started | API-only for now — test with Postman, curl, or NoSQL Booster |
 | JWT auth | ❌ Not started | `JWT_SECRET` in config only — no login or middleware yet |
@@ -73,7 +73,7 @@ API_SECRET_KEY=dev-secret-123
 PORT=3000
 NODE_ENV=development
 AI_SERVICE_URL=http://localhost:8000
-MONGO_URI=mongodb://localhost:27017/es_query_db   # or Atlas: mongodb+srv://USER:PASS@cluster.mongodb.net/es_query_db
+MONGO_URI=mongodb://localhost:27017/queryproof   # or Atlas: mongodb+srv://USER:PASS@cluster.mongodb.net/queryproof
 JWT_SECRET=change-me-in-production
 JWT_EXPIRES_IN=7d
 ```
@@ -91,12 +91,12 @@ pytest tests/test_query_analyzer.py -v
 # hit the AI service directly
 curl -X POST http://localhost:8000/api/v1/analyze \
   -H "Content-Type: application/json" \
-  -d '{"natural_language_query": "Find companies in India with revenue over 1 million"}'
+  -d '{"natural_language_query": "Class I insulin recalls in Texas during 2024"}'
 
 # hit the Express API (requires AI service + MongoDB running)
 curl -X POST http://localhost:3000/api/analyze \
   -H "Content-Type: application/json" \
-  -d '{"naturalLanguageQuery": "Find companies in India with revenue over 1 million"}'
+  -d '{"naturalLanguageQuery": "Class I insulin recalls in Texas during 2024"}'
 
 curl http://localhost:3000/api/history
 curl http://localhost:3000/health
@@ -140,7 +140,7 @@ Full API examples: `apps/api/API-Testing.md`
 ### Phase 2 — Quality & data
 - [ ] **Express API tests** — integration tests for analyze, history, stats (replace `npm test` stub)
 - [ ] **Re-enable AI response validation** — fix Zod v4 compatibility in `query.service.js`
-- [ ] **Persist `provider` and `indexName`** — save LLM provider and index name to MongoDB (stats depend on this)
+- [x] **Persist `provider` and `indexName`** — save LLM provider and index name to MongoDB (stats depend on this)
 - [ ] **Sync API docs** — update `API-Documentation.md` (missing endpoints, correct field names)
 
 ### Phase 3 — DevOps & extras

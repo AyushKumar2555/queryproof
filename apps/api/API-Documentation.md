@@ -55,7 +55,7 @@ Analyzes a natural language query and returns an Elasticsearch DSL query with ex
 {
   "naturalLanguageQuery": "string (required)",
   "indexMapping": "object (optional)",
-  "indexName": "string (optional)"
+  "indexName": "drug_enforcement"
 }
 ```
 
@@ -65,7 +65,7 @@ Analyzes a natural language query and returns an Elasticsearch DSL query with ex
 |-------|------|----------|-------------|
 | `naturalLanguageQuery` | string | Yes | The user's query in plain English |
 | `indexMapping` | object | No | ES index mapping for deeper analysis |
-| `indexName` | string | No | Name of the ES index being queried |
+| `indexName` | string | No | Always `drug_enforcement`. This API does not query other indexes. |
 
 **Validation:** Request body is validated using Zod schema (`analyzeSchema`)
 
@@ -96,8 +96,8 @@ Analyzes a natural language query and returns an Elasticsearch DSL query with ex
 curl -X POST http://localhost:3000/api/analyze \
   -H "Content-Type: application/json" \
   -d '{
-    "naturalLanguageQuery": "Find all users who signed up last month",
-    "indexName": "users"
+    "naturalLanguageQuery": "Class I insulin recalls in Texas during 2024",
+    "indexName": "drug_enforcement"
   }'
 ```
 

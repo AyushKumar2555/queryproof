@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.1
     llm_max_tokens: int = 2000
 
-    api_secret_key: str = "AIzaSyB273gXVn9XXyopuzX_TTz8rbHhwCKQpKg"
+    api_secret_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

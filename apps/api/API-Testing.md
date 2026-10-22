@@ -39,7 +39,7 @@ For AI service testing without API keys, set in `apps/ai-service/.env`:
 LLM_PROVIDER=mock
 ```
 
-With `mock`, every analyze request returns the same sample ES query (India + revenue). That is expected.
+With `mock`, every analyze request returns the same sample query for `drug_enforcement`: Class I insulin recalls in Texas.
 
 ### Where data is stored
 
@@ -126,8 +126,8 @@ If `aiService` is `"disconnected"`, start the AI service on port 8000 and retry.
 
 ```json
 {
-  "naturalLanguageQuery": "Find all users who signed up last month",
-  "indexName": "users"
+  "naturalLanguageQuery": "Class I insulin recalls in Texas during 2024",
+  "indexName": "drug_enforcement"
 }
 ```
 
@@ -135,14 +135,14 @@ If `aiService` is `"disconnected"`, start the AI service on port 8000 and retry.
 
 ```json
 {
-  "naturalLanguageQuery": "Find companies in India with revenue over 1 million",
-  "indexName": "companies",
+  "naturalLanguageQuery": "Class I insulin recalls in Texas during 2024",
+  "indexName": "drug_enforcement",
   "indexMapping": {
     "mappings": {
       "properties": {
-        "country": { "type": "keyword" },
-        "revenue": { "type": "float" },
-        "name": { "type": "text" }
+        "classification": { "type": "keyword" },
+        "state": { "type": "keyword" },
+        "product_description": { "type": "text" }
       }
     }
   }
@@ -153,7 +153,7 @@ If `aiService` is `"disconnected"`, start the AI service on port 8000 and retry.
 | Field                  | Required | Rules                      |
 | ---------------------- | -------- | -------------------------- |
 | `naturalLanguageQuery` | Yes      | String, 5–2000 characters  |
-| `indexName`            | No       | String, max 200 characters |
+| `indexName`            | No       | Defaults to `drug_enforcement` |
 | `indexMapping`         | No       | JSON object                |
 
 
@@ -406,8 +406,8 @@ Test the FastAPI service directly at `http://localhost:8000` to isolate issues f
 
 ```json
 {
-  "natural_language_query": "Find companies in India with revenue over 1 million",
-  "index_name": "companies"
+  "natural_language_query": "Class I insulin recalls in Texas during 2024",
+  "index_name": "drug_enforcement"
 }
 ```
 
@@ -428,7 +428,7 @@ curl http://localhost:3000/health
 **Analyze:**
 
 ```cmd
-curl -X POST http://localhost:3000/api/analyze -H "Content-Type: application/json" -d "{\"naturalLanguageQuery\": \"Find all users who signed up last month\", \"indexName\": \"users\"}"
+curl -X POST http://localhost:3000/api/analyze -H "Content-Type: application/json" -d "{\"naturalLanguageQuery\": \"Class I insulin recalls in Texas during 2024\", \"indexName\": \"drug_enforcement\"}"
 ```
 
 **History:**

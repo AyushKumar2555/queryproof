@@ -44,9 +44,10 @@ class AnalyzeRequest(BaseModel):
     # min_length=5 rejects nonsense inputs like "?" or "hi" before hitting the LLM
     natural_language_query: str = Field(..., min_length=5, max_length=2000)
 
-    # both optional — deeper analysis is possible when the user provides these
+    # optional — when present, the prompt includes this mapping instead of the field list
     index_mapping: dict[str, Any] | None = Field(default=None)
-    index_name:    str | None = Field(default=None, max_length=200)
+    # this service only queries the drug enforcement index
+    index_name:    str = Field(default="drug_enforcement", max_length=200)
 
 
 class AnalysisResult(BaseModel):
@@ -54,6 +55,8 @@ class AnalysisResult(BaseModel):
     # if it doesn't, Pydantic raises a validation error before this reaches the router
     es_query:            dict[str, Any]
     explanation:         str
+    # set by the API after the LLM responds — the model is not asked to invent this
+    provider:            str = "unknown"
 
     # these are lists because there can be zero or many — empty list is valid
     performance_issues:  list[PerformanceIssue]

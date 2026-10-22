@@ -2,115 +2,99 @@ const axios = require('axios')
 const config = require('../config')
 const { logger } = require('../middleware/logger.middleware')
 const QueryHistory = require('../models/query.model')
-// Import schemas from analysis.schema
-const { analysisResultSchema } = require('../types/analysis.schema')
 
-class QueryService {
+// 1. Ask the AI for an Elasticsearch query.
+// 2. Run that query on the drug_enforcement index.
+// 3. Save the run and return the query plus the hits.
+async function analyze(data) {
+  const startedAt = Date.now()
 
-  // analyze is the only public method — called by the route
-  // everything else is private by convention (prefixed with _)
-  async analyze(data) {
-    const start = Date.now()
+  const aiData = await askAi(data)
+  const result = renameAiFields(aiData)
+  result.hits = await searchDrugEnforcement(result.esQuery)
 
-    // step 1 — call FastAPI AI service
-    const aiResponse = await this._callAiService(data)
+  saveHistory(data, result, Date.now() - startedAt)
+  return result
+}
 
-    // step 2 — validate the response shape before trusting it
-    const validated = this._validateAiResponse(aiResponse)
-
-    // step 3 — save to MongoDB in the background
-    // we don't await this — saving to DB shouldn't slow down the API response
-    this._saveToHistory(data, validated, Date.now() - start).catch((err) =>
-      logger.error('history.save.failed', { error: err.message })
+// FastAPI expects snake_case names.
+async function askAi(data) {
+  try {
+    const response = await axios.post(
+      `${config.aiServiceUrl}/api/v1/analyze`,
+      {
+        natural_language_query: data.naturalLanguageQuery,
+        index_mapping: data.indexMapping || null,
+        index_name: 'drug_enforcement',
+      },
+      { timeout: 30000 }
     )
-
-    return validated
-  }
-
-  async _callAiService(data) {
-    try {
-      logger.info('ai_service.calling', {
-        query: data.naturalLanguageQuery.slice(0, 80),
-      })
-
-      const response = await axios.post(
-        `${config.aiServiceUrl}/api/v1/analyze`,
-        {
-          // FastAPI expects snake_case — convert from camelCase
-          natural_language_query: data.naturalLanguageQuery,
-          index_mapping:          data.indexMapping || null,
-          index_name:             data.indexName || null,
-        },
-        {
-          // fail fast — don't wait forever if AI service is down
-          timeout: 30000,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-
-      logger.info('ai_service.success', {
-        status: response.status,
-      })
-
-      return response.data
-
-    } catch (err) {
-      // axios wraps HTTP errors — check if it's a response error or network error
-      if (err.response) {
-        // FastAPI responded but with an error status
-        logger.error('ai_service.error_response', {
-          status:  err.response.status,
-          message: err.response.data?.detail,
-        })
-        const error = new Error('AI service returned an error')
-        error.status = 502
-        throw error
-      }
-
-      if (err.code === 'ECONNREFUSED') {
-        // FastAPI is not running
-        logger.error('ai_service.not_running')
-        const error = new Error('AI service is unavailable')
-        error.status = 503
-        throw error
-      }
-
-      if (err.code === 'ECONNABORTED') {
-        // FastAPI took too long
-        logger.error('ai_service.timeout')
-        const error = new Error('AI service timed out')
-        error.status = 504
-        throw error
-      }
-
-      throw err
-    }
-  }
-
-  _validateAiResponse(data) {
-    // convert snake_case from FastAPI to camelCase for JS
-    // Temporarily skip Zod validation due to v4 compatibility issues
-    return {
-      esQuery:            data.es_query,
-      explanation:        data.explanation,
-      performanceIssues:  data.performance_issues || [],
-      optimizations:      data.optimizations || [],
-      mappingSuggestions: data.mapping_suggestions || [],
-    }
-  }
-
-  async _saveToHistory(input, result, durationMs) {
-    await QueryHistory.create({
-      naturalLanguageQuery: input.naturalLanguageQuery,
-      indexMapping:         input.indexMapping || null,
-      result,
-      durationMs,
-    })
-
-    logger.info('history.saved', { durationMs })
+    return response.data
+  } catch (err) {
+    throw asHttpError(err, 'AI service')
   }
 }
 
-// export a single instance — same pattern as Python service
-// one instance shared across all requests
-module.exports = new QueryService()
+// FastAPI sends es_query. This API returns esQuery.
+function renameAiFields(data) {
+  return {
+    esQuery: data.es_query,
+    explanation: data.explanation,
+    performanceIssues: data.performance_issues || [],
+    optimizations: data.optimizations || [],
+    mappingSuggestions: data.mapping_suggestions || [],
+    provider: data.provider || 'unknown',
+  }
+}
+
+async function searchDrugEnforcement(esQuery) {
+  try {
+    const response = await axios.post(
+      `${config.elasticsearchUrl}/drug_enforcement/_search`,
+      esQuery,
+      { timeout: 10000 }
+    )
+    return response.data.hits?.hits || []
+  } catch (err) {
+    throw asHttpError(err, 'Elasticsearch')
+  }
+}
+
+// Save in the background. A database error should not hide the search result.
+function saveHistory(input, result, durationMs) {
+  const provider = result.provider
+  const storedResult = { ...result }
+  delete storedResult.provider
+
+  QueryHistory.create({
+    naturalLanguageQuery: input.naturalLanguageQuery,
+    indexName: 'drug_enforcement',
+    indexMapping: input.indexMapping || null,
+    provider,
+    result: storedResult,
+    durationMs,
+  }).catch((err) => {
+    logger.error('history.save.failed', { error: err.message })
+  })
+}
+
+function asHttpError(err, serviceName) {
+  if (err.code === 'ECONNREFUSED') {
+    const error = new Error(`${serviceName} is not running`)
+    error.status = 503
+    return error
+  }
+  if (err.code === 'ECONNABORTED') {
+    const error = new Error(`${serviceName} took too long`)
+    error.status = 504
+    return error
+  }
+  if (err.response) {
+    const error = new Error(`${serviceName} returned an error`)
+    error.status = 502
+    return error
+  }
+  return err
+}
+
+module.exports = { analyze }

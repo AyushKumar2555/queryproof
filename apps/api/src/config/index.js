@@ -16,6 +16,9 @@ const config = {
   // auth
   jwtSecret: process.env.JWT_SECRET || 'change-me-in-production',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+
+  // elasticsearch
+  elasticsearchUrl: process.env.ELASTICSEARCH_URL || 'http://localhost:9200',
 }
 
 // fail fast — crash immediately if critical config is missing

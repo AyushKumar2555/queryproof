@@ -10,6 +10,13 @@ const queryHistorySchema = new mongoose.Schema(
       trim:     true,
     },
 
+    // which Elasticsearch index this question was about
+    indexName: {
+      type:    String,
+      default: null,
+      trim:    true,
+    },
+
     // optional — index mapping the user provided
     indexMapping: {
       type:    mongoose.Schema.Types.Mixed,
@@ -48,5 +55,11 @@ const queryHistorySchema = new mongoose.Schema(
     timestamps: true,
   }
 )
+
+// history is always read newest-first
+queryHistorySchema.index({ createdAt: -1 })
+// stats and later filters group by these
+queryHistorySchema.index({ provider: 1, createdAt: -1 })
+queryHistorySchema.index({ indexName: 1, createdAt: -1 })
 
 module.exports = mongoose.model('QueryHistory', queryHistorySchema)

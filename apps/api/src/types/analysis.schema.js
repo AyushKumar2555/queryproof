@@ -15,8 +15,8 @@ const analyzeSchema = z.object({
   // optional — when provided enables deeper analysis
   indexMapping: z.record(z.unknown()).optional(),
 
-  // optional — name of the ES index being queried
-  indexName: z.string().max(200).optional(),
+  // this API only searches the drug_enforcement index
+  indexName: z.string().max(200).default('drug_enforcement'),
 })
 
 // response shape — documents what we return to the client
@@ -41,6 +41,7 @@ const analysisResultSchema = z.object({
     suggestedType: z.string(),
     reason:        z.string(),
   })),
+  provider: z.string().optional(),
 })
 
 module.exports = {

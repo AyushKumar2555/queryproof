@@ -1,0 +1,33 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "recall_number": { "type": "keyword" },
+      "event_id": { "type": "keyword" },
+      "status": { "type": "keyword" },
+      "classification": { "type": "keyword" },
+      "product_type": { "type": "keyword" },
+      "voluntary_mandated": { "type": "keyword" },
+      "recalling_firm": {
+        "type": "text",
+        "fields": {
+          "keyword": { "type": "keyword", "ignore_above": 256 }
+        }
+      },
+      "city": { "type": "keyword" },
+      "state": { "type": "keyword" },
+      "country": { "type": "keyword" },
+      "report_date": { "type": "date", "format": "yyyyMMdd||strict_date_optional_time" },
+      "recall_initiation_date": { "type": "date", "format": "yyyyMMdd||strict_date_optional_time" },
+      "product_description": { "type": "text" },
+      "reason_for_recall": { "type": "text" },
+      "code_info": { "type": "text" },
+      "distribution_pattern": { "type": "text" },
+      "product_quantity": { "type": "keyword" }
+    }
+  }
+}
