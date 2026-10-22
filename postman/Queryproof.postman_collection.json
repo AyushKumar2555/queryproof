@@ -1,0 +1,230 @@
+{
+  "info": {
+    "name": "Queryproof",
+    "description": "Requests for the drug_enforcement flow. Start Elasticsearch, the AI service, and the Express API first. With LLM_PROVIDER=mock, analyze always returns the Class I insulin query for Texas.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "aiBaseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "historyId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "API health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "Express API. 200 means MongoDB is connected. aiService is connected only when the AI service is running."
+          }
+        },
+        {
+          "name": "AI service health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{aiBaseUrl}}/health",
+            "description": "FastAPI health check."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analyze",
+      "item": [
+        {
+          "name": "Analyze a question",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns the query and hits', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.success).to.eql(true);",
+                  "    pm.expect(body.data.esQuery).to.be.an('object');",
+                  "    pm.expect(body.data.hits).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"naturalLanguageQuery\": \"Class I insulin recalls in Texas during 2024\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/analyze",
+            "description": "Asks the AI service for a query, runs it on drug_enforcement, and saves history. indexName is optional and defaults to drug_enforcement."
+          }
+        },
+        {
+          "name": "Analyze with a mapping",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"naturalLanguageQuery\": \"Class I insulin recalls in Texas during 2024\",\n  \"indexMapping\": {\n    \"mappings\": {\n      \"properties\": {\n        \"classification\": { \"type\": \"keyword\" },\n        \"state\": { \"type\": \"keyword\" },\n        \"product_description\": { \"type\": \"text\" }\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/analyze",
+            "description": "Same flow, but the prompt uses this mapping instead of the built-in drug_enforcement field list."
+          }
+        },
+        {
+          "name": "Analyze on the AI service",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"natural_language_query\": \"Class I insulin recalls in Texas during 2024\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{aiBaseUrl}}/api/v1/analyze",
+            "description": "Calls FastAPI directly. Field names are snake_case, and this response does not include Elasticsearch hits."
+          }
+        },
+        {
+          "name": "Reject a short question",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects fewer than 5 characters', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"naturalLanguageQuery\": \"hi\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/analyze",
+            "description": "naturalLanguageQuery must be at least 5 characters."
+          }
+        }
+      ]
+    },
+    {
+      "name": "History",
+      "item": [
+        {
+          "name": "List history",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('saves the newest history id', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(body.data).to.be.an('array');",
+                  "    if (body.data[0]) pm.collectionVariables.set('historyId', body.data[0]._id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/history?limit=10&page=1",
+            "description": "Newest runs first. The test copies the first _id into the historyId variable."
+          }
+        },
+        {
+          "name": "Get one history record",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/history/{{historyId}}",
+            "description": "Run List history first so historyId is set. A bad id returns 400. A missing id returns 404."
+          }
+        },
+        {
+          "name": "Usage stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/stats",
+            "description": "Total runs, average duration, counts by provider, and the five newest questions."
+          }
+        },
+        {
+          "name": "Delete one history record",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/history/{{historyId}}",
+            "description": "Deletes the record stored in historyId. Run this after Get one history record."
+          }
+        }
+      ]
+    }
+  ]
+}

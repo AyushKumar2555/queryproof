@@ -13,7 +13,7 @@ const analyzeSchema = z.object({
      // strips leading/trailing whitespace automatically
 
   // optional — when provided enables deeper analysis
-  indexMapping: z.record(z.unknown()).optional(),
+  indexMapping: z.record(z.string(), z.unknown()).optional(),
 
   // this API only searches the drug_enforcement index
   indexName: z.string().max(200).default('drug_enforcement'),

@@ -13,6 +13,8 @@ router.delete('/history/:id', deleteHistory)
 router.get('/stats', sendStats)
 
 async function sendAnalysis(req, res, next) {
+  console.log('sendAnalysis', req.validated)
+  console.log("================================================")
   try {
     const result = await queryService.analyze(req.validated)
     res.status(200).json({ success: true, data: result })

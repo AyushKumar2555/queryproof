@@ -7,6 +7,7 @@ const QueryHistory = require('../models/query.model')
 // 2. Run that query on the drug_enforcement index.
 // 3. Save the run and return the query plus the hits.
 async function analyze(data) {
+  console.log('analyze', data)
   const startedAt = Date.now()
 
   const aiData = await askAi(data)
@@ -19,6 +20,7 @@ async function analyze(data) {
 
 // FastAPI expects snake_case names.
 async function askAi(data) {
+  console.log('askAi', data)
   try {
     const response = await axios.post(
       `${config.aiServiceUrl}/api/v1/analyze`,
@@ -29,14 +31,17 @@ async function askAi(data) {
       },
       { timeout: 30000 }
     )
+    console.log('askAi response', response.data)
     return response.data
   } catch (err) {
+    console.log('askAi error', err)
     throw asHttpError(err, 'AI service')
   }
 }
 
 // FastAPI sends es_query. This API returns esQuery.
 function renameAiFields(data) {
+  console.log('renameAiFields', data)
   return {
     esQuery: data.es_query,
     explanation: data.explanation,
@@ -48,6 +53,7 @@ function renameAiFields(data) {
 }
 
 async function searchDrugEnforcement(esQuery) {
+  console.log('searchDrugEnforcement', esQuery)
   try {
     const response = await axios.post(
       `${config.elasticsearchUrl}/drug_enforcement/_search`,
@@ -56,12 +62,14 @@ async function searchDrugEnforcement(esQuery) {
     )
     return response.data.hits?.hits || []
   } catch (err) {
+    console.log('searchDrugEnforcement error', err)
     throw asHttpError(err, 'Elasticsearch')
   }
 }
 
 // Save in the background. A database error should not hide the search result.
 function saveHistory(input, result, durationMs) {
+  console.log('saveHistory', input, result, durationMs)
   const provider = result.provider
   const storedResult = { ...result }
   delete storedResult.provider
@@ -79,6 +87,7 @@ function saveHistory(input, result, durationMs) {
 }
 
 function asHttpError(err, serviceName) {
+  console.log('asHttpError', err, serviceName)
   if (err.code === 'ECONNREFUSED') {
     const error = new Error(`${serviceName} is not running`)
     error.status = 503
