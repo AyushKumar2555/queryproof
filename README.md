@@ -1,15 +1,17 @@
 # Queryproof
 
-Queryproof turns a plain-English question into an Elasticsearch query for one index, `drug_enforcement`, explains it, and saves the run so the result can be checked later.
+Queryproof turns a plain-English question into an Elasticsearch query for one index, `drug_enforcement`, runs that query, explains it, and saves the run so the result can be checked later.
 
 The index holds public FDA drug-enforcement records. Queryproof does not generate queries for any other index.
 
 ## What it does
 
 - Converts a natural-language question into Elasticsearch DSL
+- Runs that query on `drug_enforcement` and returns the hits
 - Explains the query in plain English
 - Flags performance issues and suggests optimizations
 - Saves each run to MongoDB with the index name, LLM provider, and duration
+- Scores a labeled question against the generated query and saves that score
 
 ## Architecture
 
@@ -18,20 +20,21 @@ Client
   → Express API (apps/api, port 3000)
     → FastAPI AI service (apps/ai-service, port 8000)
       → LLM (mock, Gemini, OpenAI, or Anthropic)
+    → Elasticsearch index `drug_enforcement`
     → MongoDB database `queryproof`
 ```
 
-Recall records will live in Elasticsearch, not MongoDB. MongoDB stores application data only.
+Recall records live in Elasticsearch. MongoDB stores application data only.
 
 | Store | Database / index | What it holds |
 | --- | --- | --- |
-| MongoDB | `queryproof` | `QueryHistory` runs, `EvalCase` labeled questions |
+| MongoDB | `queryproof` | `QueryHistory` runs, `EvalCase` labeled questions, `EvalRun` scores |
 | Elasticsearch | `drug_enforcement` | FDA drug-enforcement records |
 
 ## Layout
 
 - `apps/ai-service/` — FastAPI service that calls the LLM and returns the query analysis
-- `apps/api/` — Express API that validates input, proxies the AI service, and writes MongoDB
+- `apps/api/` — Express API that validates input, calls the AI service, runs the query, and writes MongoDB
 - `infra/docker/docker-compose.yml` — local Elasticsearch and Kibana. MongoDB on this machine is already running, so do not start the mongo service from this file.
 - `infra/elasticsearch/recalls.index.json` — mapping body for the `drug_enforcement` index
 
@@ -99,6 +102,26 @@ curl http://localhost:3000/api/stats
 curl http://localhost:3000/health
 ```
 
+Seed the insulin answer key once, from `apps/api`:
+
+```bash
+node src/seed-eval.js
+```
+
+Score the active cases. With `LLM_PROVIDER=mock`, the insulin case scores 3/5 because the mock query omits the 2024 dates.
+
+```bash
+curl -X POST http://localhost:3000/api/eval
+```
+
+Add another labeled question:
+
+```bash
+curl -X POST http://localhost:3000/api/eval/cases ^
+  -H "Content-Type: application/json" ^
+  -d "{\"question\": \"Class II metformin recalls in California\", \"expected\": {\"classification\": \"Class II\", \"state\": \"CA\", \"textMustContain\": [\"metformin\"]}}"
+```
+
 AI service tests, from `apps/ai-service`:
 
 ```bash
@@ -114,7 +137,5 @@ pytest tests/test_query_analyzer.py -v
 
 ## Not built yet
 
-- Running the generated query against `drug_enforcement` and returning hits
-- Scoring `EvalCase` questions against generated queries
 - A demo page
 - Auth

@@ -58,6 +58,13 @@ async function sendEval(req, res, next) {
   })
 }
 
+async function sendCreateEvalCase(req, res, next) {
+  await run(next, async () => {
+    const evalCase = await evalService.createEvalCase(req.validated)
+    res.status(201).json({ success: true, data: evalCase })
+  })
+}
+
 function readPage(req) {
   const limit = Math.min(parseInt(req.query.limit) || 20, 100)
   const page = Math.max(parseInt(req.query.page) || 1, 1)
@@ -139,4 +146,5 @@ module.exports = {
   deleteHistory,
   sendStats,
   sendEval,
+  sendCreateEvalCase,
 }

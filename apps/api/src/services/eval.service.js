@@ -1,6 +1,7 @@
 const axios = require('axios')
 const config = require('../config')
 const EvalCase = require('../models/eval-case.model')
+const EvalRun = require('../models/eval-run.model')
 
 async function scoreActiveCases() {
   const cases = await loadActiveCases()
@@ -13,14 +14,30 @@ async function scoreActiveCases() {
 
 function loadActiveCases() {
   return EvalCase.find({ active: true, indexName: 'drug_enforcement' })
-    .select('question expected')
+    .select('question indexName expected')
     .lean()
 }
 
 async function scoreOneCase(row) {
-  const esQuery = await askForQuery(row.question)
-  const score = scoreQuery(esQuery, row.expected || {})
-  return { question: row.question, ...score }
+  const startedAt = Date.now()
+  const generated = await askForQuery(row.question)
+  const score = scoreQuery(generated.esQuery, row.expected || {})
+  const run = await saveRun(row, generated, score, Date.now() - startedAt)
+  return { id: run._id, question: row.question, ...score }
+}
+
+async function saveRun(row, generated, score, durationMs) {
+  return EvalRun.create({
+    evalCaseId: row._id,
+    question: row.question,
+    indexName: row.indexName,
+    passed: score.passed,
+    total: score.total,
+    checks: score.checks,
+    esQuery: generated.esQuery,
+    provider: generated.provider,
+    durationMs,
+  })
 }
 
 // Query only. Analyze would also search Elasticsearch and save history.
@@ -35,7 +52,10 @@ async function askForQuery(question) {
       },
       { timeout: 30000 }
     )
-    return response.data.es_query
+    return {
+      esQuery: response.data.es_query,
+      provider: response.data.provider || 'unknown',
+    }
   } catch (err) {
     throw asHttpError(err, 'AI service')
   }
@@ -149,4 +169,25 @@ function scoreQuery(esQuery, expected = {}) {
   }
 }
 
-module.exports = { scoreQuery, scoreActiveCases }
+async function createEvalCase(input) {
+  const existing = await findEvalCase(input.question, input.indexName)
+  if (existing) throw conflict('Eval case already exists')
+  return EvalCase.create({
+    question: input.question,
+    indexName: input.indexName,
+    expected: input.expected,
+    active: input.active,
+  })
+}
+
+function findEvalCase(question, indexName) {
+  return EvalCase.findOne({ question, indexName })
+}
+
+function conflict(message) {
+  const error = new Error(message)
+  error.status = 409
+  return error
+}
+
+module.exports = { scoreQuery, scoreActiveCases, createEvalCase }
