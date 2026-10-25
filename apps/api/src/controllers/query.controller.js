@@ -1,3 +1,4 @@
+const mongoose = require('mongoose')
 const queryService = require('../services/query.service')
 const evalService = require('../services/eval.service')
 const QueryHistory = require('../models/query.model')
@@ -6,7 +7,7 @@ async function sendAnalysis(req, res, next) {
   console.log('sendAnalysis', req.validated)
   console.log("================================================")
   await run(next, async () => {
-    const result = await queryService.analyze(req.validated)
+    const result = await queryService.analyze(req.validated, req.userId)
     res.status(200).json({ success: true, data: result })
   })
 }
@@ -14,7 +15,7 @@ async function sendAnalysis(req, res, next) {
 async function sendHistory(req, res, next) {
   await run(next, async () => {
     const page = readPage(req)
-    const { records, total } = await loadHistory(page)
+    const { records, total } = await loadHistory(page, req.userId)
     res.status(200).json({
       success: true,
       data: records,
@@ -30,7 +31,7 @@ async function sendHistory(req, res, next) {
 
 async function sendOneHistory(req, res, next) {
   await run(next, async () => {
-    const record = await findHistory(req.params.id)
+    const record = await findHistory(req.params.id, req.userId)
     if (!record) return next(httpError(404, 'Query history record not found'))
     res.status(200).json({ success: true, data: record })
   }, asIdError)
@@ -38,7 +39,7 @@ async function sendOneHistory(req, res, next) {
 
 async function deleteHistory(req, res, next) {
   await run(next, async () => {
-    const deleted = await QueryHistory.findByIdAndDelete(req.params.id)
+    const deleted = await QueryHistory.findOneAndDelete({ _id: req.params.id, ...ownedBy(req.userId) })
     if (!deleted) return next(httpError(404, 'Query history record not found'))
     res.status(200).json({ success: true, message: 'Query history record deleted successfully' })
   }, asIdError)
@@ -46,14 +47,14 @@ async function deleteHistory(req, res, next) {
 
 async function sendStats(req, res, next) {
   await run(next, async () => {
-    const stats = await loadStats()
+    const stats = await loadStats(req.userId)
     res.status(200).json({ success: true, data: stats })
   })
 }
 
 async function sendEval(req, res, next) {
   await run(next, async () => {
-    const result = await evalService.scoreActiveCases()
+    const result = await evalService.scoreActiveCases(req.userId)
     res.status(200).json({ success: true, data: result })
   })
 }
@@ -71,20 +72,27 @@ function readPage(req) {
   return { limit, page, skip: (page - 1) * limit }
 }
 
-async function loadHistory({ skip, limit }) {
+async function loadHistory({ skip, limit }, userId) {
+  const filter = ownedBy(userId)
   const [records, total] = await Promise.all([
-    QueryHistory.find().sort({ createdAt: -1 }).skip(skip).limit(limit).select('-__v').lean(),
-    QueryHistory.countDocuments(),
+    QueryHistory.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).select('-__v').lean(),
+    QueryHistory.countDocuments(filter),
   ])
   return { records, total }
 }
 
-async function findHistory(id) {
-  return QueryHistory.findById(id).select('-__v').lean()
+async function findHistory(id, userId) {
+  return QueryHistory.findOne({ _id: id, ...ownedBy(userId) }).select('-__v').lean()
 }
 
-async function loadStats() {
+function ownedBy(userId) {
+  return { userId: new mongoose.Types.ObjectId(userId) }
+}
+
+async function loadStats(userId) {
+  const filter = ownedBy(userId)
   const [summary] = await QueryHistory.aggregate([
+    { $match: filter },
     {
       $group: {
         _id: null,
@@ -94,9 +102,10 @@ async function loadStats() {
     },
   ])
   const providerCounts = await QueryHistory.aggregate([
+    { $match: filter },
     { $group: { _id: '$provider', count: { $sum: 1 } } },
   ])
-  const recent = await QueryHistory.find()
+  const recent = await QueryHistory.find(filter)
     .sort({ createdAt: -1 })
     .limit(5)
     .select('naturalLanguageQuery createdAt')

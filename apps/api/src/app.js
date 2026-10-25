@@ -5,6 +5,7 @@ const axios = require('axios')
 const config = require('./config')
 const { logger, requestLogger } = require('./middleware/logger.middleware')
 const { errorHandler, notFoundHandler } = require('./middleware/error.middleware')
+const authRoutes = require('./routes/auth.route')
 const queryRoutes = require('./routes/query.route')
 
 require('./models')
@@ -22,6 +23,7 @@ app.use(cors({
 }))
 
 app.get('/health', sendHealth)
+app.use('/api/auth', authRoutes)
 app.use('/api', queryRoutes)
 app.use(notFoundHandler)
 app.use(errorHandler)

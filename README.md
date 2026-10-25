@@ -90,15 +90,24 @@ curl -X POST http://localhost:8000/api/v1/analyze ^
   -d "{\"natural_language_query\": \"Class I insulin recalls in Texas during 2024\"}"
 ```
 
+Create an account. The response includes `data.token`. Send it as `Authorization: Bearer <token>` on the routes below. `/health` stays open.
+
+```bash
+curl -X POST http://localhost:3000/api/auth/register ^
+  -H "Content-Type: application/json" ^
+  -d "{\"email\": \"you@example.com\", \"password\": \"at-least-8\"}"
+```
+
 ```bash
 curl -X POST http://localhost:3000/api/analyze ^
   -H "Content-Type: application/json" ^
+  -H "Authorization: Bearer <token>" ^
   -d "{\"naturalLanguageQuery\": \"Class I insulin recalls in Texas during 2024\", \"indexName\": \"drug_enforcement\"}"
 ```
 
 ```bash
-curl http://localhost:3000/api/history
-curl http://localhost:3000/api/stats
+curl http://localhost:3000/api/history -H "Authorization: Bearer <token>"
+curl http://localhost:3000/api/stats -H "Authorization: Bearer <token>"
 curl http://localhost:3000/health
 ```
 
@@ -111,7 +120,7 @@ node src/seed-eval.js
 Score the active cases. With `LLM_PROVIDER=mock`, the insulin case scores 3/5 because the mock query omits the 2024 dates.
 
 ```bash
-curl -X POST http://localhost:3000/api/eval
+curl -X POST http://localhost:3000/api/eval -H "Authorization: Bearer <token>"
 ```
 
 Add another labeled question:
@@ -119,6 +128,7 @@ Add another labeled question:
 ```bash
 curl -X POST http://localhost:3000/api/eval/cases ^
   -H "Content-Type: application/json" ^
+  -H "Authorization: Bearer <token>" ^
   -d "{\"question\": \"Class II metformin recalls in California\", \"expected\": {\"classification\": \"Class II\", \"state\": \"CA\", \"textMustContain\": [\"metformin\"]}}"
 ```
 
@@ -135,7 +145,6 @@ pytest tests/test_query_analyzer.py -v
 - Elasticsearch 8.15 and Kibana 8.15, local Docker
 - Gemini, OpenAI, Anthropic, or the built-in mock provider
 
-## Not built yet
+## Page
 
-- A demo page
-- Auth
+From `apps/web`, run `npm install` then `npm run dev`. Open `http://localhost:5173` and sign in. The page calls the API.

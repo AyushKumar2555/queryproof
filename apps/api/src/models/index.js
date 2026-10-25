@@ -2,3 +2,4 @@
 require('./query.model')
 require('./eval-case.model')
 require('./eval-run.model')
+require('./user.model')

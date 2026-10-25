@@ -16,12 +16,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     gemini_api_key: str = ""
-    llm_model: str = "gemini-1.5-flash"
+    llm_model: str = "gemini-3.5-flash-lite"
 
     # kept very low — we want deterministic JSON output, not creative writing
     # higher values = more random = more likely to return malformed JSON
     llm_temperature: float = 0.1
-    llm_max_tokens: int = 2000
+    llm_max_tokens: int = 8192
 
     api_secret_key: str = ""
 

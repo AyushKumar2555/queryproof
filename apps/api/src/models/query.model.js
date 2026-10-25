@@ -30,6 +30,7 @@ const queryHistorySchema = new mongoose.Schema(
       performanceIssues:  mongoose.Schema.Types.Mixed,
       optimizations:      mongoose.Schema.Types.Mixed,
       mappingSuggestions: mongoose.Schema.Types.Mixed,
+      hits:               [mongoose.Schema.Types.Mixed],
     },
 
     // how long the AI service took to respond in milliseconds
@@ -43,10 +44,9 @@ const queryHistorySchema = new mongoose.Schema(
       default: 'unknown',
     },
 
-    // for future auth — which user made this query
-    // optional for now, required after we add auth
     userId: {
       type:    mongoose.Schema.Types.ObjectId,
+      ref:     'User',
       default: null,
     },
   },
@@ -57,6 +57,7 @@ const queryHistorySchema = new mongoose.Schema(
 )
 
 // history is always read newest-first
+queryHistorySchema.index({ userId: 1, createdAt: -1 })
 queryHistorySchema.index({ createdAt: -1 })
 // stats and later filters group by these
 queryHistorySchema.index({ provider: 1, createdAt: -1 })

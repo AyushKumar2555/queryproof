@@ -1,9 +1,11 @@
 import asyncio
 import json
+import time
 
 import structlog
-import google.generativeai as genai
 from anthropic import AsyncAnthropic
+from google import genai as google_genai
+from google.genai import types as google_genai_types
 from openai import AsyncOpenAI
 
 from core.config import get_settings
@@ -22,7 +24,10 @@ DRUG_FIELDS = (
     "voluntary_mandated, recalling_firm, city, state, country, "
     "report_date, recall_initiation_date, product_description, "
     "reason_for_recall, code_info, distribution_pattern, product_quantity. "
-    "Do not invent fields."
+    "Do not invent fields. "
+    "classification is exactly Class I, Class II, or Class III. "
+    "state is a two-letter code, never the full name: Texas is TX, Pennsylvania is PA, Illinois is IL. "
+    "A place outside the United States, such as Mexico or Canada, goes in country, not state."
 )
 
 async def analyze(request: AnalyzeRequest) -> AnalysisResult:
@@ -41,9 +46,18 @@ Natural language query: "{request.natural_language_query}"
 
 You MUST respond with a single valid JSON object. No markdown. No backticks. No explanation outside the JSON.
 
-The JSON must follow this exact schema:
+The JSON must follow this exact schema.
+es_query is the body of an Elasticsearch _search request. It must contain a query key.
+Use filter for classification, state, and dates. Dates are yyyy-MM-dd.
 {{
-  "es_query": {{...}},
+  "es_query": {{
+    "size": 20,
+    "query": {{
+      "bool": {{
+        "filter": []
+      }}
+    }}
+  }},
   "explanation": "plain English explanation of how the query works",
   "performance_issues": [
     {{
@@ -96,14 +110,9 @@ def create_client():
     if settings.llm_provider == "openai":
         return AsyncOpenAI(api_key=settings.openai_api_key)
     if settings.llm_provider == "gemini":
-        genai.configure(api_key=settings.gemini_api_key)
-        return genai.GenerativeModel(
-            model_name=settings.llm_model,
-            generation_config=genai.GenerationConfig(
-                temperature=settings.llm_temperature,
-                max_output_tokens=settings.llm_max_tokens,
-            ),
-            system_instruction=JSON_ONLY,
+        return google_genai.Client(
+            api_key=settings.gemini_api_key,
+            http_options=google_genai_types.HttpOptions(timeout=90_000),
         )
     return None
 
@@ -136,8 +145,35 @@ async def call_openai(prompt: str) -> str:
 
 async def call_gemini(prompt: str) -> str:
     loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(None, lambda: client.generate_content(prompt))
-    return response.text
+    response = await loop.run_in_executor(None, lambda: ask_gemini(prompt))
+    return response.text or ""
+
+
+def ask_gemini(prompt: str):
+    last_error = None
+    for attempt in range(3):
+        try:
+            return client.models.generate_content(
+                model=settings.llm_model,
+                contents=prompt,
+                config={
+                    "system_instruction": JSON_ONLY,
+                    "temperature": settings.llm_temperature,
+                    "max_output_tokens": settings.llm_max_tokens,
+                    "response_mime_type": "application/json",
+                },
+            )
+        except Exception as error:
+            last_error = error
+            if not is_busy(error) or attempt == 2:
+                raise
+            time.sleep(2 * (attempt + 1))
+    raise last_error
+
+
+def is_busy(error):
+    text = str(error)
+    return "503" in text or "UNAVAILABLE" in text or "high demand" in text
 
 
 def mock_response() -> str:

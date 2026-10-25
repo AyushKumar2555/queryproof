@@ -6,7 +6,7 @@ const QueryHistory = require('../models/query.model')
 // 1. Ask the AI for an Elasticsearch query.
 // 2. Run that query on the drug_enforcement index.
 // 3. Save the run and return the query plus the hits.
-async function analyze(data) {
+async function analyze(data, userId) {
   console.log('analyze', data)
   const startedAt = Date.now()
 
@@ -14,7 +14,7 @@ async function analyze(data) {
   const result = renameAiFields(aiData)
   result.hits = await searchDrugEnforcement(result.esQuery)
 
-  saveHistory(data, result, Date.now() - startedAt)
+  saveHistory(data, result, Date.now() - startedAt, userId)
   return result
 }
 
@@ -29,7 +29,7 @@ async function askAi(data) {
         index_mapping: data.indexMapping || null,
         index_name: 'drug_enforcement',
       },
-      { timeout: 30000 }
+      { timeout: 90000 }
     )
     console.log('askAi response', response.data)
     return response.data
@@ -57,7 +57,7 @@ async function searchDrugEnforcement(esQuery) {
   try {
     const response = await axios.post(
       `${config.elasticsearchUrl}/drug_enforcement/_search`,
-      esQuery,
+      asSearchBody(esQuery),
       { timeout: 10000 }
     )
     return response.data.hits?.hits || []
@@ -67,8 +67,13 @@ async function searchDrugEnforcement(esQuery) {
   }
 }
 
+function asSearchBody(esQuery) {
+  if (esQuery && (esQuery.query || esQuery.aggs)) return esQuery
+  return { query: esQuery }
+}
+
 // Save in the background. A database error should not hide the search result.
-function saveHistory(input, result, durationMs) {
+function saveHistory(input, result, durationMs, userId) {
   console.log('saveHistory', input, result, durationMs)
   const provider = result.provider
   const storedResult = { ...result }
@@ -81,6 +86,7 @@ function saveHistory(input, result, durationMs) {
     provider,
     result: storedResult,
     durationMs,
+    userId: userId || null,
   }).catch((err) => {
     logger.error('history.save.failed', { error: err.message })
   })

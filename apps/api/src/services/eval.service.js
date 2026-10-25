@@ -3,11 +3,11 @@ const config = require('../config')
 const EvalCase = require('../models/eval-case.model')
 const EvalRun = require('../models/eval-run.model')
 
-async function scoreActiveCases() {
+async function scoreActiveCases(userId) {
   const cases = await loadActiveCases()
   const results = []
   for (const row of cases) {
-    results.push(await scoreOneCase(row))
+    results.push(await scoreOneCase(row, userId))
   }
   return results
 }
@@ -18,15 +18,15 @@ function loadActiveCases() {
     .lean()
 }
 
-async function scoreOneCase(row) {
+async function scoreOneCase(row, userId) {
   const startedAt = Date.now()
   const generated = await askForQuery(row.question)
   const score = scoreQuery(generated.esQuery, row.expected || {})
-  const run = await saveRun(row, generated, score, Date.now() - startedAt)
+  const run = await saveRun(row, generated, score, Date.now() - startedAt, userId)
   return { id: run._id, question: row.question, ...score }
 }
 
-async function saveRun(row, generated, score, durationMs) {
+async function saveRun(row, generated, score, durationMs, userId) {
   return EvalRun.create({
     evalCaseId: row._id,
     question: row.question,
@@ -37,6 +37,7 @@ async function saveRun(row, generated, score, durationMs) {
     esQuery: generated.esQuery,
     provider: generated.provider,
     durationMs,
+    userId: userId || null,
   })
 }
 
@@ -50,7 +51,7 @@ async function askForQuery(question) {
         index_mapping: null,
         index_name: 'drug_enforcement',
       },
-      { timeout: 30000 }
+      { timeout: 90000 }
     )
     return {
       esQuery: response.data.es_query,
