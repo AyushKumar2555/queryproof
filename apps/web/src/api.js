@@ -1,4 +1,5 @@
 const TOKEN_KEY = 'queryproof.token'
+const EMAIL_KEY = 'queryproof.email'
 
 export function readToken() {
   return localStorage.getItem(TOKEN_KEY) || ''
@@ -10,6 +11,18 @@ export function saveToken(token) {
 
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
+}
+
+export function readEmail() {
+  return localStorage.getItem(EMAIL_KEY) || ''
+}
+
+export function saveEmail(email) {
+  if (email) localStorage.setItem(EMAIL_KEY, email)
+}
+
+export function clearEmail() {
+  localStorage.removeItem(EMAIL_KEY)
 }
 
 export async function register(email, password) {

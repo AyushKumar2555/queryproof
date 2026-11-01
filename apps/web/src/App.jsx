@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   analyzeQuestion,
+  clearEmail,
   clearToken,
   loadHistory,
   login,
+  readEmail,
   readToken,
   register,
+  saveEmail,
   saveToken,
   scoreCases,
 } from './api.js'
@@ -37,20 +40,32 @@ export default function App() {
   const [scoreError, setScoreError] = useState('')
   const [scoring, setScoring] = useState(false)
   const [token, setToken] = useState(readToken)
+  const [email, setEmail] = useState(readEmail)
   const [question, setQuestion] = useState('')
+  const [authOpen, setAuthOpen] = useState(false)
+  const authRef = useRef(null)
 
   useEffect(() => {
     if (token) refreshHistory()
   }, [token])
 
+  function showAuth() {
+    setAuthOpen(true)
+    requestAnimationFrame(() => authRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
   function onSignedIn(session) {
     saveToken(session.token)
+    saveEmail(session.user?.email)
     setToken(session.token)
+    setEmail(session.user?.email || '')
   }
 
   function onSignOut() {
     clearToken()
+    clearEmail()
     setToken('')
+    setEmail('')
     setResult(null)
     setError('')
     setHistory([])
@@ -58,6 +73,7 @@ export default function App() {
     setScores(null)
     setScoreError('')
     setQuestion('')
+    setAuthOpen(false)
   }
 
   function leaveIfSignedOut(err) {
@@ -106,16 +122,11 @@ export default function App() {
   }
 
   return (
-    <main className="page">
-      <Hero signedIn={Boolean(token)} onSignOut={onSignOut} />
-      <Proof />
-      <Why />
-      <How />
-      <Stack />
-      <section className="live" id="live">
-        <h2>Try it live</h2>
+    <>
+      <SiteHeader signedIn={Boolean(token)} email={email} onSignIn={showAuth} onSignOut={onSignOut} />
+      <main>
         {token ? (
-          <LiveApp
+          <SignedIn
             scores={scores}
             scoreError={scoreError}
             scoring={scoring}
@@ -128,167 +139,97 @@ export default function App() {
             result={result}
             history={history}
             historyError={historyError}
-            onOpen={setResult}
+            onOpen={(record) => {
+              setQuestion(record.naturalLanguageQuery || '')
+              setResult(record.result)
+            }}
           />
         ) : (
-          <>
-            <p className="muted">Create an account to ask your own question and run the grade.</p>
-            <AuthForm onSignedIn={onSignedIn} />
-          </>
+          <SignedOut authOpen={authOpen} authRef={authRef} onOpenAuth={showAuth} onSignedIn={onSignedIn} />
         )}
-      </section>
-    </main>
+      </main>
+      <footer>
+        <div className="wrap">Queryproof is a small demo by Yushbyte. It uses about 300 real FDA drug-enforcement records.</div>
+      </footer>
+    </>
   )
 }
 
-function Hero({ signedIn, onSignOut }) {
+function SiteHeader({ signedIn, email, onSignIn, onSignOut }) {
   return (
-    <header className="hero">
-      <p className="name">
-        <span>Queryproof</span>
-        {signedIn ? <button type="button" className="link" onClick={onSignOut}>Sign out</button> : null}
-      </p>
-      <h1>A query can run, find nothing, and still be right.</h1>
-      <p className="lede">
-        Queryproof turns one English question about an FDA drug recall into a search query, runs it, and grades whether the query kept the facts you asked for.
-      </p>
-      <a className="primary" href="#live">Try it live</a>
-      <a className="primary ghost" href="#proof">See the proof</a>
-      <ul className="facts">
-        <li><b>~300</b> FDA drug-enforcement records</li>
-        <li><b>1</b> index: drug_enforcement</li>
-        <li><b>6</b> kinds of facts on an answer key</li>
-        <li><b>0</b> JSON text comparisons</li>
-      </ul>
+    <header>
+      <div className="wrap">
+        <span className="brand">Queryproof</span>
+        {signedIn ? (
+          <div className="who">
+            <span>{email || 'Signed in'}</span>
+            <button className="btn quiet" type="button" onClick={onSignOut}>Sign out</button>
+          </div>
+        ) : (
+          <button className="btn quiet" type="button" onClick={onSignIn}>Sign in</button>
+        )}
+      </div>
     </header>
+  )
+}
+
+function SignedOut({ authOpen, authRef, onOpenAuth, onSignedIn }) {
+  return (
+    <div className="wrap">
+      <div className="hero">
+        <h1>A query can be right and still find nothing.</h1>
+        <p className="lead">
+          Queryproof turns a plain-English question about an FDA drug recall into a search, then checks the search against the facts you asked for. <strong>The number of hits does not tell you if the query is correct.</strong>
+        </p>
+        <button className="btn" type="button" onClick={onOpenAuth}>Try it live</button>
+      </div>
+      <Proof />
+      <div className="how">
+        <h2>How it works</h2>
+        <ol>
+          <li>You type one question about an FDA drug recall.</li>
+          <li>Queryproof writes a query for one index, drug_enforcement, and runs it on about 300 real FDA drug-enforcement records.</li>
+          <li>It grades the query against a saved answer key. The grade checks facts, not JSON text: class, state, firm, start date, end date, and product words.</li>
+          <li>You see the grade, then the recalls. The query itself is there if you want the evidence.</li>
+        </ol>
+      </div>
+      <AuthForm open={authOpen} formRef={authRef} onSignedIn={onSignedIn} />
+    </div>
   )
 }
 
 function Proof() {
   return (
-    <section id="proof">
-      <h2>One question, graded two ways</h2>
-      <p className="muted">
-        The saved answer key asks for insulin recalls that are Class I, in Texas, during 2024. No stored record matches all of that. The grade and the result still tell the truth.
-      </p>
-      <div className="demo">
-        <div className="panel">
-          <h3>The grade: did the query keep the facts?</h3>
-          <p className="q">Class I insulin recalls in Texas during 2024</p>
-          <p className="big">5 of 5</p>
-          <p className="muted tight">Every fact is in the query.</p>
-          <ul>
-            <li className="pass"><span>Class <code>Class I</code></span><b>Pass</b></li>
-            <li className="pass"><span>State <code>TX</code></span><b>Pass</b></li>
-            <li className="pass"><span>Start date <code>2024-01-01</code></span><b>Pass</b></li>
-            <li className="pass"><span>End date <code>2024-12-31</code></span><b>Pass</b></li>
-            <li className="pass"><span>Product words <code>insulin</code></span><b>Pass</b></li>
-          </ul>
-        </div>
-        <div className="panel">
-          <h3>The result: what the data holds</h3>
-          <p className="q">Matching recalls</p>
-          <p className="empty flat">
-            <b>No matching recalls.</b> The query ran. No stored record fits it. This is not a grade miss.
-          </p>
-          <p className="muted spaced">
-            The only insulin record is Class II, from Canada, in 2014. The query was right. The data simply has no such recall.
-          </p>
-        </div>
-      </div>
-      <div className="contrast">
-        <div className="miss-note">
-          <b>Miss</b>
-          <p>The query dropped or changed a fact, such as the wrong class or state. It is a wrong filter, even if it returns recalls.</p>
-        </div>
-        <div className="empty-note">
-          <b>No matching recalls</b>
-          <p>The query kept every fact, and no stored record matches them. Nothing is wrong with the query.</p>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function Why() {
-  return (
-    <section>
-      <h2>Why it is built this way</h2>
-      <div className="why">
-        <div>
-          <h3>Grade facts, not text</h3>
-          <p>Two different queries can mean the same thing. Queryproof asks the model the same question again and checks class, state, firm, dates, and product words.</p>
-        </div>
-        <div>
-          <h3>Separate wrong from empty</h3>
-          <p>A result count alone cannot tell a bad filter from a missing record. The grade and the recalls stay apart so each failure is readable.</p>
-        </div>
-        <div>
-          <h3>Keep the evidence last</h3>
-          <p>The raw query sits at the bottom of every result. You read the score and the recalls first, then open the query.</p>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function How() {
-  return (
-    <section>
-      <h2>How it works</h2>
-      <ol className="explainer">
-        <li><strong>Ask</strong><span>Type a question about an FDA drug recall in plain English, or pick one of five stored questions.</span></li>
-        <li><strong>Run</strong><span>Queryproof writes a query for the drug_enforcement index, runs it, and lists each recall with firm, class, state, recall number, and product.</span></li>
-        <li><strong>Grade</strong><span>Every active answer key is graded Pass or Miss on each fact. Each account keeps its own question history.</span></li>
-      </ol>
-    </section>
-  )
-}
-
-function Stack() {
-  return (
-    <section>
-      <h2>What is under it</h2>
-      <ul className="stack">
-        <li>React 19</li>
-        <li>Vite</li>
-        <li>Express API</li>
-        <li>Elasticsearch</li>
-        <li>Token sign-in</li>
-        <li>Per-account history</li>
-      </ul>
-    </section>
-  )
-}
-
-function LiveApp({
-  scores,
-  scoreError,
-  scoring,
-  onScore,
-  question,
-  pending,
-  askError,
-  onQuestion,
-  onAsk,
-  result,
-  history,
-  historyError,
-  onOpen,
-}) {
-  return (
     <>
-      <EvalPanel scores={scores} error={scoreError} pending={scoring} onScore={onScore} />
-      <QuestionForm question={question} pending={pending} onQuestion={onQuestion} onAsk={onAsk} />
-      {askError ? <p className="error" role="alert">{askError}</p> : null}
-      {pending ? <p className="waiting" role="status">Writing and running the query…</p> : null}
-      {result ? <Answer result={result} /> : null}
-      <HistoryList records={history} error={historyError} onOpen={onOpen} />
+      <div className="q"><small>The question</small>Class I insulin recalls in Texas during 2024</div>
+      <div className="split">
+        <section>
+          <span className="tag">The grade: did the query ask for what you asked?</span>
+          <div className="score">5 of 5</div>
+          <ul className="facts">
+            <li><span className="k">Class</span><span>I <span className="pill pass">Pass</span></span></li>
+            <li><span className="k">State</span><span>Texas <span className="pill pass">Pass</span></span></li>
+            <li><span className="k">Start date</span><span>1 Jan 2024 <span className="pill pass">Pass</span></span></li>
+            <li><span className="k">End date</span><span>31 Dec 2024 <span className="pill pass">Pass</span></span></li>
+            <li><span className="k">Product words</span><span>insulin <span className="pill pass">Pass</span></span></li>
+            <li><span className="k">Firm</span><span><span className="pill skip">Not asked</span></span></li>
+          </ul>
+        </section>
+        <section>
+          <span className="tag">The result: what the stored records hold</span>
+          <div className="score-none">No matching recalls</div>
+          <p className="why">The query ran. The only insulin recall in the data is Class II, from Canada, in 2014. No stored record fits, so nothing comes back.</p>
+        </section>
+      </div>
+      <div className="rule">
+        <div className="m"><p><b>A miss means a wrong fact.</b>The query dropped or changed something you asked for, such as the class or the state.</p></div>
+        <div className="e"><p><b>No matching recalls means no record.</b>The query was right. The data just has no such recall.</p></div>
+      </div>
     </>
   )
 }
 
-function AuthForm({ onSignedIn }) {
+function AuthForm({ open, formRef, onSignedIn }) {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -311,91 +252,100 @@ function AuthForm({ onSignedIn }) {
   }
 
   return (
-    <div className="panel">
-      <h2>{creating ? 'Create an account' : 'Sign in to ask a question'}</h2>
-      <form onSubmit={onSubmit}>
-        <label htmlFor="email">
-          Email
-          <input id="email" type="email" value={email} autoComplete="email" onChange={(event) => setEmail(event.target.value)} />
-        </label>
-        <label htmlFor="password">
-          Password
+    <div className={open ? 'auth open' : 'auth'} id="auth" ref={formRef}>
+      <div className="box">
+        <div className="tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={!creating} onClick={() => setMode('login')}>Sign in</button>
+          <button type="button" role="tab" aria-selected={creating} onClick={() => setMode('register')}>Create account</button>
+        </div>
+        <form onSubmit={onSubmit}>
+          <label htmlFor="email">Email</label>
+          <input id="email" type="email" autoComplete="email" value={email} required onChange={(event) => setEmail(event.target.value)} />
+          <label htmlFor="password">Password</label>
           <input
             id="password"
             type="password"
-            value={password}
             autoComplete={creating ? 'new-password' : 'current-password'}
+            minLength={8}
+            value={password}
+            required
             onChange={(event) => setPassword(event.target.value)}
           />
-          <small>At least 8 characters.</small>
-        </label>
-        {error ? <p className="error" role="alert">{error}</p> : null}
-        <div className="row">
-          <button className="primary" type="submit" disabled={pending || !email.trim() || password.length < 8}>
+          <p className="hint">At least 8 characters.</p>
+          {error ? <p className="err show" role="alert">{error}</p> : null}
+          <button className="btn" type="submit" disabled={pending || !email.trim() || password.length < 8}>
             {pending ? 'Please wait…' : creating ? 'Create account' : 'Sign in'}
           </button>
-          <button
-            type="button"
-            className="link"
-            onClick={() => {
-              setMode(creating ? 'login' : 'register')
-              setError('')
-            }}
-          >
-            {creating ? 'Have an account? Sign in' : 'Need an account? Create one'}
-          </button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   )
 }
 
-function EvalPanel({ scores, error, pending, onScore }) {
+function SignedIn({
+  scores,
+  scoreError,
+  scoring,
+  onScore,
+  question,
+  pending,
+  askError,
+  onQuestion,
+  onAsk,
+  result,
+  history,
+  historyError,
+  onOpen,
+}) {
   return (
-    <div className="panel">
-      <h2>Did the query keep the facts?</h2>
-      <p className="muted">Each answer key lists the facts a query must contain. We never compare JSON text.</p>
-      <button type="button" className="primary" onClick={onScore} disabled={pending}>
+    <div className="wrap app">
+      <GradeSection scores={scores} error={scoreError} pending={scoring} onScore={onScore} />
+      <AskSection question={question} pending={pending} onQuestion={onQuestion} onAsk={onAsk} />
+      {askError ? <p className="err show" role="alert">{askError}</p> : null}
+      {pending ? <Waiting /> : null}
+      {result ? <Answer question={question} result={result} /> : null}
+      <HistoryList records={history} error={historyError} onOpen={onOpen} />
+    </div>
+  )
+}
+
+function GradeSection({ scores, error, pending, onScore }) {
+  return (
+    <section className="sec">
+      <h2>Grade the answer keys</h2>
+      <p className="mute">Every question is graded on the facts you asked for. Each one is Pass or Miss. A fact you did not ask for is skipped.</p>
+      <button className="btn" type="button" onClick={onScore} disabled={pending}>
         {pending ? 'Grading…' : 'Grade the answer keys'}
       </button>
-      {error ? <p className="error" role="alert">{error}</p> : null}
+      {error ? <p className="err show" role="alert">{error}</p> : null}
       {scores ? <ScoreList scores={scores} /> : null}
-    </div>
+    </section>
   )
 }
 
 function ScoreList({ scores }) {
-  if (scores.length === 0) return <p>No answer keys yet.</p>
-  return (
-    <div className="score">
-      {scores.map((score) => (
-        <div className="key" key={score.id}>
-          <p className="score-num">{score.passed} of {score.total}</p>
-          <p className="key-q">{score.question}</p>
-          <p className="muted tight">
-            {score.passed === score.total ? 'Every fact is in the query.' : 'A missing fact is a wrong filter, even if the query ran.'}
-          </p>
-          <ul>
-            {(score.checks || []).map((check) => (
-              <li key={check.name} className={check.passed ? 'pass' : 'miss'}>
-                <span>{CHECK_LABELS[check.name] || check.name}</span>
-                <b>{check.passed ? 'Pass' : 'Miss'}</b>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      <p className="muted note">A graded query can still return no recalls. The facts can be right while no stored record matches them.</p>
+  if (scores.length === 0) return <p className="hint">No answer keys yet.</p>
+  return scores.map((score) => (
+    <div className="grade-key" key={score.id}>
+      <div className="score">{score.passed} of {score.total}</div>
+      <p>{score.question}</p>
+      <p className="hint">
+        {score.passed === score.total ? 'Every fact is in the query.' : 'A missing fact is a wrong filter, even if the query ran.'}
+      </p>
+      <ul className="facts">
+        {(score.checks || []).map((check) => (
+          <li key={check.name}>
+            <span className="k">{CHECK_LABELS[check.name] || check.name}</span>
+            <span className={check.passed ? 'pill pass' : 'pill miss'}>{check.passed ? 'Pass' : 'Miss'}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="hint">A graded query can still return no recalls. The facts can be right while no stored record matches them.</p>
     </div>
-  )
+  ))
 }
 
-function QuestionForm({ question, pending, onQuestion, onAsk }) {
-  function onSubmit(event) {
-    event.preventDefault()
-    ask(question)
-  }
-
+function AskSection({ question, pending, onQuestion, onAsk }) {
   function ask(text) {
     const trimmed = text.trim()
     if (trimmed.length < 5 || pending) return
@@ -404,57 +354,76 @@ function QuestionForm({ question, pending, onQuestion, onAsk }) {
   }
 
   return (
-    <section>
-      <h2>Try a stored recall</h2>
-      <div className="samples">
+    <section className="sec">
+      <h2>Ask a question</h2>
+      <p className="mute">Pick a sample or write your own. Asking can take a little while.</p>
+      <ul className="samples">
         {SAMPLES.map((sample) => (
-          <button key={sample} type="button" disabled={pending} onClick={() => ask(sample)}>
-            {sample}
-          </button>
+          <li key={sample}>
+            <button type="button" disabled={pending} onClick={() => onQuestion(sample)}>{sample}</button>
+          </li>
         ))}
-      </div>
-      <form onSubmit={onSubmit}>
-        <label htmlFor="question">
-          Or ask your own
-          <textarea
-            id="question"
-            rows={2}
-            value={question}
-            placeholder="Class III recalls in California"
-            onChange={(event) => onQuestion(event.target.value)}
-          />
-        </label>
-        <button className="primary" type="submit" disabled={pending || question.trim().length < 5}>
-          {pending ? 'Running the query…' : 'Ask'}
-        </button>
+      </ul>
+      <form onSubmit={(event) => { event.preventDefault(); ask(question) }}>
+        <label htmlFor="question">Your question</label>
+        <textarea
+          id="question"
+          rows={2}
+          value={question}
+          placeholder="One question about an FDA drug recall"
+          onChange={(event) => onQuestion(event.target.value)}
+        />
+        <div className="ask-row">
+          <button className="btn" type="submit" disabled={pending || question.trim().length < 5}>
+            {pending ? 'Working on it…' : 'Grade this question'}
+          </button>
+        </div>
       </form>
     </section>
   )
 }
 
-function Answer({ result }) {
+function Waiting() {
+  return (
+    <section className="wait show" aria-live="polite">
+      <h3>Working on it</h3>
+      <p className="mute">This usually takes a little while. Your question is still running.</p>
+      <ol>
+        <li className="on">Writing the query</li>
+        <li>Running it on the recalls</li>
+        <li>Reading the result</li>
+      </ol>
+      <div className="bar"><i /></div>
+    </section>
+  )
+}
+
+function Answer({ question, result }) {
   const hits = Array.isArray(result.hits) ? result.hits : null
   return (
-    <section className="result" aria-live="polite">
-      <h2>Matching recalls</h2>
-      {result.explanation ? <p className="explanation">{result.explanation}</p> : null}
-      {hits === null ? (
-        <p className="muted">Recalls were not stored with this question.</p>
-      ) : null}
+    <section className="result show" aria-live="polite">
+      <div className="card">
+        <span className="tag">Your question</span>
+        <p className="rq">{question}</p>
+        {result.explanation ? <p className="explain">{result.explanation}</p> : null}
+      </div>
+      {hits === null ? <p className="hint">Recalls were not stored with this question.</p> : null}
       {hits && hits.length === 0 ? (
-        <p className="empty">
-          <b>No matching recalls.</b> The query ran. No stored record fits it. This is not a grade miss.
-        </p>
+        <div className="empty">
+          <h3>No matching recalls</h3>
+          <p>The query ran, and no stored record fits it. This is not a failed grade.</p>
+        </div>
       ) : null}
       {hits && hits.length > 0 ? (
-        <ul className="recalls">
+        <div className="card">
+          <h3>Matching recalls</h3>
           {hits.map((hit) => (
             <Hit key={hit._id} source={hit._source || {}} />
           ))}
-        </ul>
+        </div>
       ) : null}
-      <details className="evidence">
-        <summary>The query that ran on drug_enforcement</summary>
+      <details>
+        <summary>The query that ran</summary>
         <pre>{JSON.stringify(result.esQuery, null, 2)}</pre>
       </details>
     </section>
@@ -463,29 +432,30 @@ function Answer({ result }) {
 
 function Hit({ source }) {
   return (
-    <li>
-      <p className="firm">{source.recalling_firm || 'Unknown firm'}</p>
-      <p className="meta">
-        {[source.classification, source.state || '—', source.recall_number].filter(Boolean).join(' · ')}
-      </p>
+    <article className="recall">
+      <div className="firm">{source.recalling_firm || 'Unknown firm'}</div>
+      <div className="meta">
+        {source.classification ? <span>{source.classification}</span> : null}
+        <span>{source.state || '—'}</span>
+        {source.recall_number ? <span>{source.recall_number}</span> : null}
+      </div>
       <p>{source.product_description}</p>
-    </li>
+    </article>
   )
 }
 
 function HistoryList({ records, error, onOpen }) {
   return (
-    <section className="history">
-      <h2>Recent questions</h2>
-      {error ? <p className="error" role="alert">{error}</p> : null}
-      {records.length === 0 && !error ? <p className="muted">Your questions will appear here.</p> : null}
-      <ul>
+    <section className="sec">
+      <h2>Your recent questions</h2>
+      <p className="mute">Only you can see this list. Other accounts cannot.</p>
+      {error ? <p className="err show" role="alert">{error}</p> : null}
+      {records.length === 0 && !error ? <p className="hint">Your questions will appear here.</p> : null}
+      <ul className="recent">
         {records.map((record) => (
           <li key={record._id}>
-            <button type="button" className="link" onClick={() => onOpen(record.result)}>
-              {record.naturalLanguageQuery}
-            </button>
-            <p className="meta">{formatWhen(record.createdAt)}</p>
+            <button type="button" onClick={() => onOpen(record)}>{record.naturalLanguageQuery}</button>
+            <span className="mute">{formatWhen(record.createdAt)}</span>
           </li>
         ))}
       </ul>

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Queryproof</title>
+<style>
+:root{
+  --paper:#f4f6f8;--card:#fff;--ink:#17212b;--mute:#566372;--line:#d5dbe2;
+  --pass:#17704a;--pass-bg:#e3f2ea;--miss:#a93226;--miss-bg:#f9e6e3;
+  --none:#34557d;--none-bg:#e4ecf6;--accent:#17212b;
+  --serif:"Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#12181f;--card:#1a232d;--ink:#e8edf2;--mute:#9aa8b6;--line:#2c3844;
+  --pass:#6fd0a0;--pass-bg:#16332a;--miss:#ff9c8f;--miss-bg:#3a1f1c;
+  --none:#9cc0ee;--none-bg:#1b2c42;--accent:#e8edf2;}}
+*{box-sizing:border-box}
+html{font-size:18px}
+body{margin:0;background:var(--paper);color:var(--ink);font:1rem/1.55 var(--sans);-webkit-text-size-adjust:100%}
+.wrap{max-width:62rem;margin:0 auto;padding:0 1.25rem}
+:focus-visible{outline:3px solid var(--none);outline-offset:2px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,5.5vw,3.1rem);letter-spacing:-.015em;max-width:20ch}
+h2{font-size:1.6rem}
+h3{font-size:1.15rem}
+p{margin:0}
+.mute{color:var(--mute)}
+button,input,textarea{font:inherit;color:inherit}
+.btn{display:inline-block;background:var(--accent);color:var(--paper);border:0;border-radius:.4rem;padding:.7rem 1.2rem;font-weight:600;cursor:pointer;min-height:2.75rem}
+.btn:hover{opacity:.88}
+.btn.quiet{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+/* header */
+header{border-bottom:1px solid var(--line)}
+header .wrap{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:4rem}
+.brand{font-family:var(--serif);font-size:1.35rem;font-weight:700}
+.who{display:flex;align-items:center;gap:.75rem;font-size:.9rem}
+.who span{overflow:hidden;text-overflow:ellipsis;max-width:40vw;white-space:nowrap}
+
+/* views */
+body[data-view="out"] .in-only{display:none}
+body[data-view="in"] .out-only{display:none}
+
+/* hero */
+.hero{padding:3rem 0 2rem}
+.hero .lead{font-size:1.15rem;max-width:36rem;margin:1.1rem 0 1.6rem}
+.hero .lead strong{font-weight:600}
+
+/* THE split: grade vs result */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:0;background:var(--card);border:1px solid var(--line);border-radius:.6rem;overflow:hidden}
+.split>section{padding:1.5rem}
+.split>section+section{border-left:1px solid var(--line)}
+.q{font-family:var(--serif);font-size:1.2rem;padding:1.1rem 1.5rem;background:var(--card);border:1px solid var(--line);border-bottom:0;border-radius:.6rem .6rem 0 0}
+.q small{display:block;font:.8rem var(--sans);color:var(--mute);margin-bottom:.15rem}
+.split{border-radius:0 0 .6rem .6rem}
+.tag{display:block;font-size:.85rem;color:var(--mute);margin-bottom:.4rem}
+.score{font-family:var(--serif);font-size:3rem;line-height:1;font-weight:600;color:var(--pass)}
+.score-none{font-family:var(--serif);font-size:2rem;line-height:1.1;font-weight:600;color:var(--none)}
+.facts{list-style:none;margin:1.1rem 0 0;padding:0;display:grid;gap:.4rem}
+.facts li{display:flex;justify-content:space-between;gap:.75rem;align-items:baseline;border-top:1px solid var(--line);padding-top:.4rem;font-size:.95rem}
+.facts .k{color:var(--mute)}
+.pill{display:inline-block;border-radius:2rem;padding:.05rem .6rem;font-size:.82rem;font-weight:700;white-space:nowrap}
+.pill.pass{background:var(--pass-bg);color:var(--pass)}
+.pill.miss{background:var(--miss-bg);color:var(--miss)}
+.pill.skip{background:transparent;color:var(--mute);border:1px solid var(--line);font-weight:500}
+.why{background:var(--none-bg);color:var(--ink);border-left:4px solid var(--none);padding:.8rem 1rem;margin-top:1.1rem;font-size:.95rem;border-radius:0 .4rem .4rem 0}
+.rule{margin-top:1.5rem;display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.rule p{font-size:.95rem}
+.rule b{display:block;font-family:var(--serif);font-size:1.05rem;margin-bottom:.15rem}
+.rule .m b{color:var(--miss)} .rule .e b{color:var(--none)}
+
+/* how */
+.how{padding:2.5rem 0 3rem}
+.how ol{margin:1rem 0 0;padding-left:1.2rem;max-width:40rem}
+.how li{margin-bottom:.5rem}
+
+/* auth */
+.auth{display:none;padding:0 0 3rem}
+.auth.open{display:block}
+.auth .box{max-width:25rem;background:var(--card);border:1px solid var(--line);border-radius:.6rem;padding:1.5rem}
+.tabs{display:flex;gap:1.2rem;border-bottom:1px solid var(--line);margin-bottom:1rem}
+.tabs button{background:none;border:0;padding:.5rem 0;cursor:pointer;color:var(--mute);border-bottom:3px solid transparent;font-weight:600}
+.tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--ink)}
+label{display:block;font-weight:600;font-size:.92rem;margin:.9rem 0 .25rem}
+input[type=email],input[type=password],textarea{width:100%;background:var(--paper);border:1px solid var(--line);border-radius:.4rem;padding:.65rem .75rem;min-height:2.75rem}
+.hint{font-size:.85rem;color:var(--mute);margin-top:.25rem}
+.err{display:none;color:var(--miss);font-size:.9rem;margin-top:.6rem}
+.auth .btn{margin-top:1.1rem;width:100%}
+
+/* signed in */
+.app{padding:2.25rem 0 3rem;display:grid;gap:2.5rem}
+.sec>h2{margin-bottom:.35rem}
+.sec>.mute{max-width:38rem}
+.grade-key{background:var(--card);border:1px solid var(--line);border-radius:.6rem;padding:1.4rem;margin-top:1rem}
+.grade-key .facts{grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.8rem 1.5rem}
+.samples{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0 1.2rem;padding:0;list-style:none}
+.samples button{background:var(--card);border:1px solid var(--line);border-radius:2rem;padding:.5rem .95rem;cursor:pointer;text-align:left;min-height:2.75rem}
+.samples button:hover{border-color:var(--ink)}
+textarea{resize:vertical;min-height:4.5rem;background:var(--card)}
+.ask-row{display:flex;gap:1rem;align-items:center;margin-top:.8rem;flex-wrap:wrap}
+
+/* waiting */
+.wait{display:none;background:var(--card);border:1px solid var(--line);border-radius:.6rem;padding:1.4rem}
+.wait.show{display:block}
+.wait ol{list-style:none;margin:.9rem 0 0;padding:0;display:grid;gap:.35rem;color:var(--mute);font-size:.95rem}
+.wait li::before{content:"○ "} .wait li.on{color:var(--ink);font-weight:600} .wait li.on::before{content:"● "} .wait li.done::before{content:"✓ "}
+.bar{height:.4rem;background:var(--line);border-radius:1rem;overflow:hidden;margin-top:1rem}
+.bar i{display:block;height:100%;width:35%;background:var(--none);border-radius:1rem;animation:slide 1.4s ease-in-out infinite}
+@keyframes slide{0%{margin-left:-35%}100%{margin-left:100%}}
+@media (prefers-reduced-motion:reduce){.bar i{animation:none;width:100%;opacity:.5}}
+
+/* results */
+.result{display:none;gap:1.5rem}
+.result.show{display:grid}
+.card{background:var(--card);border:1px solid var(--line);border-radius:.6rem;padding:1.3rem}
+.card .head{display:flex;flex-wrap:wrap;gap:.5rem 1.5rem;align-items:baseline;justify-content:space-between}
+.recall{border-top:1px solid var(--line);padding:1rem 0}
+.recall:first-child{border-top:0;padding-top:.2rem}
+.recall .firm{font-family:var(--serif);font-size:1.1rem;font-weight:600}
+.meta{display:flex;flex-wrap:wrap;gap:.3rem 1.1rem;font-size:.9rem;color:var(--mute);margin:.2rem 0 .4rem}
+.empty{border:2px dashed var(--none);background:var(--none-bg);border-radius:.6rem;padding:1.3rem}
+.empty h3{color:var(--none)}
+details{background:var(--card);border:1px solid var(--line);border-radius:.6rem}
+summary{padding:.9rem 1.2rem;cursor:pointer;font-weight:600;min-height:2.75rem}
+pre{margin:0;padding:1rem 1.2rem;border-top:1px solid var(--line);font:.8rem/1.5 var(--mono);overflow-x:auto;white-space:pre}
+.recent{list-style:none;margin:.8rem 0 0;padding:0}
+.recent li{padding:.7rem 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.recent li:first-child{border-top:0}
+.recent button{background:none;border:0;padding:0;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+footer{border-top:1px solid var(--line);padding:1.5rem 0 4.5rem;font-size:.85rem;color:var(--mute)}
+
+/* spec bar */
+.spec{position:fixed;left:0;right:0;bottom:0;background:var(--ink);color:var(--paper);font-size:.8rem;padding:.5rem 1rem;display:flex;gap:.8rem;align-items:center;justify-content:center;flex-wrap:wrap;z-index:5}
+.spec button{background:transparent;color:inherit;border:1px solid currentColor;border-radius:2rem;padding:.2rem .7rem;cursor:pointer}
+.spec button[aria-pressed="true"]{background:var(--paper);color:var(--ink)}
+
+@media (max-width:42rem){
+  html{font-size:17px}
+  .split{grid-template-columns:1fr}
+  .split>section+section{border-left:0;border-top:1px solid var(--line)}
+  .rule{grid-template-columns:1fr}
+  .hero{padding-top:2rem}
+}
+</style>
+</head>
+<body data-view="out">
+
+<header>
+  <div class="wrap">
+    <span class="brand">Queryproof</span>
+    <div class="out-only"><button class="btn quiet" data-open-auth>Sign in</button></div>
+    <div class="who in-only"><span>you@example.com</span><button class="btn quiet" id="signout">Sign out</button></div>
+  </div>
+</header>
+
+<main>
+<!-- ============ SIGNED OUT ============ -->
+<div class="out-only">
+  <div class="wrap">
+    <div class="hero">
+      <h1>A query can be right and still find nothing.</h1>
+      <p class="lead">Queryproof turns a plain-English question about an FDA drug recall into a search, then checks the search against the facts you asked for. <strong>The number of hits does not tell you if the query is correct.</strong></p>
+      <button class="btn" data-open-auth>Try it live</button>
+    </div>
+
+    <div class="q"><small>The question</small>Class I insulin recalls in Texas during 2024</div>
+    <div class="split">
+      <section aria-labelledby="g1">
+        <span class="tag" id="g1">The grade: did the query ask for what you asked?</span>
+        <div class="score">5 of 5</div>
+        <ul class="facts">
+          <li><span class="k">Class</span><span>I <span class="pill pass">Pass</span></span></li>
+          <li><span class="k">State</span><span>Texas <span class="pill pass">Pass</span></span></li>
+          <li><span class="k">Start date</span><span>1 Jan 2024 <span class="pill pass">Pass</span></span></li>
+          <li><span class="k">End date</span><span>31 Dec 2024 <span class="pill pass">Pass</span></span></li>
+          <li><span class="k">Product words</span><span>insulin <span class="pill pass">Pass</span></span></li>
+          <li><span class="k">Firm</span><span><span class="pill skip">Not asked</span></span></li>
+        </ul>
+      </section>
+      <section aria-labelledby="g2">
+        <span class="tag" id="g2">The result: what the stored records hold</span>
+        <div class="score-none">No matching recalls</div>
+        <p class="why">The query ran. The only insulin recall in the data is Class II, from Canada, in 2014. No stored record fits, so nothing comes back.</p>
+      </section>
+    </div>
+
+    <div class="rule">
+      <div class="m"><p><b>A miss means a wrong fact.</b>The query dropped or changed something you asked for, such as the class or the state.</p></div>
+      <div class="e"><p><b>No matching recalls means no record.</b>The query was right. The data just has no such recall.</p></div>
+    </div>
+
+    <div class="how">
+      <h2>How it works</h2>
+      <ol>
+        <li>You type one question about an FDA drug recall.</li>
+        <li>Queryproof writes a query for one index, drug_enforcement, and runs it on about 300 real FDA drug-enforcement records.</li>
+        <li>It grades the query against a saved answer key. The grade checks facts, not JSON text: class, state, firm, start date, end date, and product words.</li>
+        <li>You see the grade, then the recalls. The query itself is there if you want the evidence.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="auth" id="auth">
+    <div class="wrap">
+      <div class="box">
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="in">Sign in</button>
+          <button role="tab" aria-selected="false" data-tab="new">Create account</button>
+        </div>
+        <form id="authform" novalidate>
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="email" required>
+          <label for="pw">Password</label>
+          <input id="pw" type="password" autocomplete="current-password" minlength="8" required>
+          <p class="hint">At least 8 characters.</p>
+          <p class="err" id="autherr" role="alert">Enter an email and a password of at least 8 characters.</p>
+          <button class="btn" type="submit" id="authgo">Sign in</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SIGNED IN ============ -->
+<div class="in-only">
+  <div class="wrap app">
+
+    <section class="sec" aria-labelledby="gk">
+      <h2 id="gk">Grade the answer keys</h2>
+      <p class="mute">Every question is graded on six facts. Each one is Pass or Miss. A fact you did not ask for is skipped. The score reads like “5 of 5”.</p>
+      <div class="grade-key">
+        <ul class="facts">
+          <li><span class="k">Class</span><span class="pill pass">Pass</span></li>
+          <li><span class="k">State</span><span class="pill pass">Pass</span></li>
+          <li><span class="k">Firm</span><span class="pill skip">Not asked</span></li>
+          <li><span class="k">Start date</span><span class="pill miss">Miss</span></li>
+          <li><span class="k">End date</span><span class="pill pass">Pass</span></li>
+          <li><span class="k">Product words</span><span class="pill pass">Pass</span></li>
+        </ul>
+        <p class="hint" style="margin-top:.9rem">Layout key only. A Miss is a wrong fact. It is never the same as an empty result.</p>
+      </div>
+    </section>
+
+    <section class="sec" aria-labelledby="ask">
+      <h2 id="ask">Ask a question</h2>
+      <p class="mute">Pick a sample or write your own. Asking can take a little while.</p>
+      <ul class="samples" id="samples">
+        <li><button type="button">Class II progesterone injection recalls in Illinois</button></li>
+        <li><button type="button">Semaglutide recalls in Pennsylvania</button></li>
+        <li><button type="button">Hand sanitizer recalls from Mexico</button></li>
+        <li><button type="button">Insulin recalls</button></li>
+        <li><button type="button">Class I recalls in Texas</button></li>
+      </ul>
+      <label for="question">Your question</label>
+      <textarea id="question" rows="2" placeholder="One question about an FDA drug recall"></textarea>
+      <div class="ask-row">
+        <button class="btn" id="askgo" type="button">Grade this question</button>
+      </div>
+    </section>
+
+    <section class="wait" id="wait" aria-live="polite">
+      <h3>Working on it</h3>
+      <p class="mute">This usually takes a few seconds. Your question is still running.</p>
+      <ol id="steps">
+        <li class="on">Writing the query</li>
+        <li>Running it on the recalls</li>
+        <li>Grading it against the answer key</li>
+      </ol>
+      <div class="bar"><i></i></div>
+    </section>
+
+    <section class="result" id="result" aria-live="polite">
+      <div class="card">
+        <span class="tag">Your question</span>
+        <p style="font-family:var(--serif);font-size:1.2rem" id="rq">Class I insulin recalls in Texas during 2024</p>
+        <div style="margin-top:1rem" class="head">
+          <div><span class="tag">Grade</span><span class="score">5 of 5</span></div>
+        </div>
+        <p style="margin-top:.9rem">The query asked for Class I, Texas, insulin, and the dates 1 Jan to 31 Dec 2024. Every fact matches your question.</p>
+      </div>
+
+      <div id="nohits" class="empty">
+        <h3>No matching recalls</h3>
+        <p style="margin-top:.4rem">The query ran, and no stored record fits it. This is not a failed grade. The only insulin record in the data is Class II, from Canada, in 2014.</p>
+      </div>
+
+      <div id="hits" class="card" hidden>
+        <div class="head"><h3>Matching recalls</h3><span class="mute">Layout example</span></div>
+        <div style="margin-top:.8rem">
+          <article class="recall">
+            <div class="firm">Firm name</div>
+            <div class="meta"><span>Class II</span><span>State</span><span>Recall number</span></div>
+            <p>Product description appears here in full, in plain text.</p>
+          </article>
+          <article class="recall">
+            <div class="firm">Firm name</div>
+            <div class="meta"><span>Class I</span><span>State</span><span>Recall number</span></div>
+            <p>Product description appears here in full, in plain text.</p>
+          </article>
+        </div>
+      </div>
+
+      <details>
+        <summary>The query that ran</summary>
+        <pre>{ "query": { "bool": { "filter": [
+  { "term":  { "classification": "Class I" } },
+  { "term":  { "state": "TX" } },
+  { "range": { "recall_initiation_date": { "gte": "2024-01-01", "lte": "2024-12-31" } } },
+  { "match": { "product_description": "insulin" } }
+] } } }</pre>
+      </details>
+    </section>
+
+    <section class="sec" aria-labelledby="rec">
+      <h2 id="rec">Your recent questions</h2>
+      <p class="mute">Only you can see this list. Other accounts cannot.</p>
+      <ul class="recent">
+        <li><button type="button">Class I insulin recalls in Texas during 2024</button><span class="mute">Today</span></li>
+        <li><button type="button">Insulin recalls</button><span class="mute">Yesterday</span></li>
+      </ul>
+    </section>
+  </div>
+</div>
+</main>
+
+<footer><div class="wrap">Queryproof is a small demo by Yushbyte. It uses about 300 real FDA drug-enforcement records.</div></footer>
+
+<div class="spec" role="group" aria-label="Spec preview controls">
+  Spec preview:
+  <button id="s-out" aria-pressed="true">Signed out</button>
+  <button id="s-in" aria-pressed="false">Signed in</button>
+  <button id="s-hits" aria-pressed="false">Show recalls layout</button>
+</div>
+
+<script>
+(function(){
+  var $=function(s){return document.querySelector(s)};
+  var body=document.body, auth=$('#auth'), mode='in';
+  function view(v){body.dataset.view=v;$('#s-out').setAttribute('aria-pressed',v==='out');$('#s-in').setAttribute('aria-pressed',v==='in');window.scrollTo(0,0)}
+  document.querySelectorAll('[data-open-auth]').forEach(function(b){b.onclick=function(){auth.classList.add('open');auth.scrollIntoView({behavior:'smooth'});$('#email').focus()}});
+  document.querySelectorAll('[data-tab]').forEach(function(t){t.onclick=function(){
+    mode=t.dataset.tab;
+    document.querySelectorAll('[data-tab]').forEach(function(x){x.setAttribute('aria-selected',x===t)});
+    $('#authgo').textContent=mode==='in'?'Sign in':'Create account';
+    $('#pw').autocomplete=mode==='in'?'current-password':'new-password';}});
+  $('#authform').onsubmit=function(e){e.preventDefault();
+    var ok=/\S+@\S+/.test($('#email').value)&&$('#pw').value.length>=8;
+    $('#autherr').style.display=ok?'none':'block';
+    if(ok)view('in');};
+  $('#signout').onclick=function(){view('out')};
+  $('#s-out').onclick=function(){view('out')};
+  $('#s-in').onclick=function(){view('in')};
+  document.querySelectorAll('#samples button,.recent button').forEach(function(b){b.onclick=function(){$('#question').value=b.textContent;$('#question').focus()}});
+  var hitsOn=false;
+  function layout(){$('#hits').hidden=!hitsOn;$('#nohits').hidden=hitsOn;$('#s-hits').setAttribute('aria-pressed',hitsOn)}
+  $('#s-hits').onclick=function(){hitsOn=!hitsOn;layout()};
+  $('#askgo').onclick=function(){
+    var q=$('#question').value.trim(); if(!q){$('#question').focus();return}
+    $('#rq').textContent=q; $('#result').classList.remove('show');
+    var w=$('#wait'); w.classList.add('show'); w.scrollIntoView({behavior:'smooth',block:'center'});
+    var li=document.querySelectorAll('#steps li'); li.forEach(function(x,i){x.className=i?'':'on'});
+    $('#askgo').disabled=true;
+    setTimeout(function(){li[0].className='done';li[1].className='on'},1200);
+    setTimeout(function(){li[1].className='done';li[2].className='on'},2400);
+    setTimeout(function(){w.classList.remove('show');$('#result').classList.add('show');$('#askgo').disabled=false;$('#result').scrollIntoView({behavior:'smooth'})},3500);
+  };
+  layout();
+})();
+</script>
+</body>
+</html>
